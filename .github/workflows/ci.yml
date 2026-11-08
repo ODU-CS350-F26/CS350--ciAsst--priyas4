@@ -1,0 +1,43 @@
+name: CI - build and test
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+
+concurrency:
+  group: ci-reports
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+      - name: Configure report commit identity
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email '41898282+github-actions[bot]@users.noreply.github.com'
+      - name: Build and test
+        run: ./gradlew clean build --no-daemon --console=plain
+      - name: Generate and publish reports to gh-pages
+        run: ./gradlew deployReports --no-daemon --console=plain -PreportsRepo=https://github.com/${{ github.repository }}.git
+        env:
+          GRGIT_USER: x-access-token
+          GRGIT_PASS: ${{ secrets.GITHUB_TOKEN }}
+      # GITHUB_TOKEN pushes do not automatically trigger a Pages build.
+      - name: Build and deploy GitHub Pages
+        run: gh api --method POST repos/${{ github.repository }}/pages/builds
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
